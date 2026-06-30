@@ -1,0 +1,275 @@
+{
+  "name": "Protocol-W — AI Workout Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "protocol-w-generate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-generate",
+      "name": "Webhook — Generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "protocol-w-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate a unique requestId\nconst requestId = crypto.randomUUID();\n\n// Store quiz data in workflow static data keyed by requestId\nconst staticData = $getWorkflowStaticData('global');\nstaticData[requestId] = {\n  status: 'processing',\n  quizData: $input.first().json.body,\n  createdAt: new Date().toISOString()\n};\n\nreturn [{ json: { requestId, quizData: $input.first().json.body } }];"
+      },
+      "id": "code-generate-id",
+      "name": "Generate Request ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ requestId: $json.requestId }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-generate",
+      "name": "Respond — RequestId",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [640, 200]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a certified personal trainer and exercise science expert. Create a personalized workout plan based on this user profile:\n\n- Sex: {{ $json.quizData.sex }}\n- Age Range: {{ $json.quizData.age }}\n- Height: {{ $json.quizData.height }}cm\n- Weight: {{ $json.quizData.weight }}kg\n- Desired Shape: {{ $json.quizData.shape }}\n\nGenerate a complete 3-day ABC split workout plan. For each day, provide:\n1. The day label (Day A, Day B, Day C)\n2. The muscle group focus\n3. 5-6 exercises with sets, reps, rest time, and optional notes\n\nAlso provide:\n- A motivational title for the plan\n- A brief description (2-3 sentences)\n- Recommended training frequency\n- Estimated session duration\n- Fitness level classification\n- 3-4 practical tips\n\nRespond ONLY with valid JSON in this exact structure:\n{\n  \"title\": \"string\",\n  \"description\": \"string\",\n  \"frequency\": \"string\",\n  \"duration\": \"string\",\n  \"level\": \"string\",\n  \"days\": [\n    {\n      \"day\": \"Day A\",\n      \"focus\": \"string\",\n      \"exercises\": [\n        { \"name\": \"string\", \"sets\": number, \"reps\": \"string\", \"rest\": \"string\", \"notes\": \"string\" }\n      ]\n    }\n  ],\n  \"tips\": [\"string\"]\n}\n\nDo NOT include any text outside the JSON object. No markdown, no code fences, just raw JSON.",
+        "hasOutputParser": false
+      },
+      "id": "ai-generate",
+      "name": "AI — Generate Plan",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [640, 420]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "id": "openai-model-generate",
+      "name": "OpenAI Model — Generate",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [640, 620],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a JSON validation and fitness quality assurance specialist.\n\nReview and validate this AI-generated workout plan. Your tasks:\n1. Ensure the JSON structure is exactly correct with all required fields\n2. Verify exercise selections are appropriate for the user profile\n3. Ensure sets/reps/rest are realistic and safe\n4. Fix any formatting issues\n\nUser Profile:\n- Sex: {{ $('Generate Request ID').item.json.quizData.sex }}\n- Age: {{ $('Generate Request ID').item.json.quizData.age }}\n- Desired Shape: {{ $('Generate Request ID').item.json.quizData.shape }}\n\nRaw AI output to validate:\n{{ $json.output }}\n\nRespond ONLY with the validated/corrected JSON object. The structure MUST be:\n{\n  \"title\": \"string\",\n  \"description\": \"string\",\n  \"frequency\": \"string (e.g. '3x per week')\",\n  \"duration\": \"string (e.g. '45-60 min')\",\n  \"level\": \"string (e.g. 'Intermediate')\",\n  \"days\": [\n    {\n      \"day\": \"Day A\",\n      \"focus\": \"string\",\n      \"exercises\": [\n        { \"name\": \"string\", \"sets\": number, \"reps\": \"string\", \"rest\": \"string\", \"notes\": \"string or empty string\" }\n      ]\n    },\n    { \"day\": \"Day B\", ... },\n    { \"day\": \"Day C\", ... }\n  ],\n  \"tips\": [\"string\", \"string\", \"string\"]\n}\n\nEnsure exactly 3 days. Each day must have 5-6 exercises. sets must be a number, reps must be a string like '8-12'. rest must be a string like '60s'.\n\nDo NOT include any text outside the JSON. No markdown, no code fences.",
+        "hasOutputParser": false
+      },
+      "id": "ai-review",
+      "name": "AI — Review & Validate",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [900, 420]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "openai-model-review",
+      "name": "OpenAI Model — Review",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [900, 620],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the validated workout plan and store in static data\nconst staticData = $getWorkflowStaticData('global');\nconst requestId = $('Generate Request ID').first().json.requestId;\n\nlet workoutPlan;\ntry {\n  const rawOutput = $input.first().json.output;\n  // Try to extract JSON from the output (handles potential markdown wrapping)\n  const jsonMatch = rawOutput.match(/\\{[\\s\\S]*\\}/);\n  workoutPlan = JSON.parse(jsonMatch ? jsonMatch[0] : rawOutput);\n} catch (e) {\n  staticData[requestId] = {\n    ...staticData[requestId],\n    status: 'error',\n    error: 'Failed to parse workout plan JSON: ' + e.message\n  };\n  return [{ json: { success: false, error: e.message } }];\n}\n\n// Store the completed plan\nstaticData[requestId] = {\n  ...staticData[requestId],\n  status: 'completed',\n  workoutPlan: workoutPlan,\n  completedAt: new Date().toISOString()\n};\n\nreturn [{ json: { success: true, requestId } }];"
+      },
+      "id": "code-store-result",
+      "name": "Store Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 420]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "protocol-w-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-status",
+      "name": "Webhook — Status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 700],
+      "webhookId": "protocol-w-status"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Retrieve status for a given requestId\nconst staticData = $getWorkflowStaticData('global');\nconst requestId = $input.first().json.query.requestId;\n\nif (!requestId || !staticData[requestId]) {\n  return [{ json: { status: 'error', error: 'Invalid or unknown requestId' } }];\n}\n\nconst entry = staticData[requestId];\n\nif (entry.status === 'completed') {\n  // Clean up after delivery to prevent memory leaks\n  const result = {\n    status: 'completed',\n    workoutPlan: entry.workoutPlan\n  };\n  delete staticData[requestId];\n  return [{ json: result }];\n}\n\nif (entry.status === 'error') {\n  const result = {\n    status: 'error',\n    error: entry.error || 'Unknown error'\n  };\n  delete staticData[requestId];\n  return [{ json: result }];\n}\n\n// Still processing\nreturn [{ json: { status: 'processing' } }];"
+      },
+      "id": "code-check-status",
+      "name": "Check Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-status",
+      "name": "Respond — Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [640, 700]
+    }
+  ],
+  "connections": {
+    "Webhook — Generate": {
+      "main": [
+        [
+          {
+            "node": "Generate Request ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Request ID": {
+      "main": [
+        [
+          {
+            "node": "Respond — RequestId",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI — Generate Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model — Generate": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI — Generate Plan",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI — Generate Plan": {
+      "main": [
+        [
+          {
+            "node": "AI — Review & Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model — Review": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI — Review & Validate",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI — Review & Validate": {
+      "main": [
+        [
+          {
+            "node": "Store Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Status": {
+      "main": [
+        [
+          {
+            "node": "Check Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Status": {
+      "main": [
+        [
+          {
+            "node": "Respond — Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

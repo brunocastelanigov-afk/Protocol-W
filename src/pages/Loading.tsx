@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/Header";
 import { BeforeAfterSliderCard } from "@/components/ui/BeforeAfterSliderCard";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { TestimonialCard } from "@/components/ui/TestimonialCard";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
+import { submitQuizToN8N, pollWorkoutStatus, type WorkoutPlan, type QuizAnswers } from "@/services/api";
 
 // Importing Before/After assets
 import beforeImg from "@/assets/protocolW/Men-Before-After/before.webp";
@@ -35,36 +36,99 @@ const testimonials = [
   }
 ];
 
+const PROGRESS_LABELS = [
+  { threshold: 0, label: "Analyzing your goals..." },
+  { threshold: 20, label: "Mapping muscle groups..." },
+  { threshold: 40, label: "Designing exercise selection..." },
+  { threshold: 60, label: "Optimizing sets & reps..." },
+  { threshold: 80, label: "Finalizing your protocol..." },
+];
+
+function getProgressLabel(value: number): string {
+  let label = PROGRESS_LABELS[0].label;
+  for (const entry of PROGRESS_LABELS) {
+    if (value >= entry.threshold) label = entry.label;
+  }
+  return label;
+}
+
 export default function LoadingPage() {
   const [dots, setDots] = useState("");
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
   const [progressValue, setProgressValue] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const quizAnswers: QuizAnswers | undefined = location.state?.quizAnswers;
 
-  // Progress animation
+  // ─── Submit quiz & poll N8N ───────────────────────────────────────
   useEffect(() => {
-    const duration = 6000; // 6 seconds mock loading
-    const intervalTime = 100;
-    const steps = duration / intervalTime;
-    let currentStep = 0;
+    if (!quizAnswers) return;
 
-    const interval = setInterval(() => {
-      currentStep++;
-      const nextValue = Math.min((currentStep / steps) * 100, 100);
-      setProgressValue(nextValue);
+    let pollIntervalId: ReturnType<typeof setInterval>;
+    let progressIntervalId: ReturnType<typeof setInterval>;
+    let cancelled = false;
 
-      if (currentStep >= steps) {
-        clearInterval(interval);
-        setIsFinished(true);
+    // Animate progress bar up to 90% max while waiting for backend
+    let progressStep = 0;
+    progressIntervalId = setInterval(() => {
+      progressStep++;
+      const maxProgress = 90;
+      // Ease-out curve: fast at start, slows down approaching 90%
+      const value = Math.min(
+        maxProgress * (1 - Math.exp(-progressStep / 80)),
+        maxProgress
+      );
+      setProgressValue(value);
+    }, 200);
+
+    const startPolling = async () => {
+      try {
+        const { requestId } = await submitQuizToN8N(quizAnswers);
+
+        pollIntervalId = setInterval(async () => {
+          if (cancelled) return;
+          try {
+            const result = await pollWorkoutStatus(requestId);
+
+            if (result.status === 'completed' && result.workoutPlan) {
+              clearInterval(pollIntervalId);
+              clearInterval(progressIntervalId);
+              setProgressValue(100);
+              setWorkoutPlan(result.workoutPlan);
+              // Small delay so user sees 100% before button appears
+              setTimeout(() => {
+                if (!cancelled) setIsFinished(true);
+              }, 600);
+            } else if (result.status === 'error') {
+              clearInterval(pollIntervalId);
+              clearInterval(progressIntervalId);
+              setError(result.error || 'An error occurred generating your protocol.');
+            }
+          } catch (err) {
+            console.error('Polling error:', err);
+          }
+        }, 2000); // Poll every 2 seconds
+      } catch (err) {
+        clearInterval(progressIntervalId);
+        setError('Failed to start workout generation. Is N8N running?');
+        console.error('Submit error:', err);
       }
-    }, intervalTime);
+    };
 
-    return () => clearInterval(interval);
-  }, []);
+    startPolling();
 
-  // Animated dots for the headline
+    return () => {
+      cancelled = true;
+      clearInterval(pollIntervalId);
+      clearInterval(progressIntervalId);
+    };
+  }, [quizAnswers]);
+
+  // ─── Animated dots for the headline ───────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       setDots(prev => (prev.length >= 3 ? "" : prev + "."));
@@ -72,7 +136,7 @@ export default function LoadingPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Update carousel active index and auto-scroll
+  // ─── Carousel auto-scroll ────────────────────────────────────────
   useEffect(() => {
     if (!api) return;
     
@@ -124,14 +188,26 @@ export default function LoadingPage() {
           />
         </div>
 
-        {/* Polling Progress Container */}
+        {/* Progress / Button / Error Container */}
         <div className="w-full max-w-md mx-auto">
-          {isFinished ? (
+          {error ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-4">
+              <p className="text-center text-[var(--destructive)] font-medium text-sm">{error}</p>
+              <Button 
+                size="lg" 
+                variant="outline"
+                className="w-full text-lg h-14 rounded-2xl"
+                onClick={() => navigate('/')}
+              >
+                Back to Quiz
+              </Button>
+            </motion.div>
+          ) : isFinished ? (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
               <Button 
                 size="lg" 
                 className="w-full text-lg h-14 md:h-16 rounded-2xl shadow-[var(--shadow-md)]"
-                onClick={() => navigate('/final-training')}
+                onClick={() => navigate('/final-training', { state: { workoutPlan } })}
               >
                 View Personalized Training
               </Button>
@@ -139,7 +215,7 @@ export default function LoadingPage() {
           ) : (
             <Progress value={progressValue} className="w-full flex-col items-start gap-2">
               <div className="flex w-full justify-between">
-                <ProgressLabel>Analyzing your goals...</ProgressLabel>
+                <ProgressLabel>{getProgressLabel(progressValue)}</ProgressLabel>
                 <ProgressValue />
               </div>
             </Progress>

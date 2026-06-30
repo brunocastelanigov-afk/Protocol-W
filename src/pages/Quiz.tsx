@@ -55,7 +55,7 @@ export default function Quiz() {
       setStep(step + 1);
     } else {
       console.log('Final Answers:', answers);
-      navigate('/loading');
+      navigate('/loading', { state: { quizAnswers: answers } });
     }
   };
 
