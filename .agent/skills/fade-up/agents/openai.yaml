@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fade Up"
+  short_description: "Apply sequential fade-up animations with Framer Motion."
+  default_prompt: "Apply the fade-up effect to the selected page or components."
