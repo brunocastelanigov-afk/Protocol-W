@@ -25,6 +25,7 @@ import womanUltraMuscular from '@/assets/protocolW/Woman-Body-Types/Ultra-Muscul
 export default function Quiz() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [isTestMode, setIsTestMode] = useState(false);
   const [answers, setAnswers] = useState({
     sex: '',
     age: '',
@@ -55,7 +56,7 @@ export default function Quiz() {
       setStep(step + 1);
     } else {
       console.log('Final Answers:', answers);
-      navigate('/loading', { state: { quizAnswers: answers } });
+      navigate('/loading', { state: { quizAnswers: answers, isTestMode } });
     }
   };
 
@@ -189,6 +190,25 @@ export default function Quiz() {
       transition={{ duration: 0.4 }}
       className="min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans antialiased flex flex-col overflow-hidden"
     >
+      {/* N8N Target Webhook Toggle */}
+      <div className="flex items-center justify-center gap-2 py-2 bg-slate-950/80 border-b border-white/5 text-xs z-50">
+        <span className="font-semibold tracking-wider text-[var(--muted-foreground)] uppercase">N8N Target:</span>
+        <button
+          type="button"
+          onClick={() => setIsTestMode(false)}
+          className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${!isTestMode ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+        >
+          Production (/webhook)
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsTestMode(true)}
+          className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${isTestMode ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'}`}
+        >
+          Test Mode (/webhook-test)
+        </button>
+      </div>
+
       <Header>
         <div className="w-[384px] sm:w-[576px]">
           <FunnelProgressBar currentStep={step} totalSteps={5} />

@@ -65,6 +65,7 @@ export default function LoadingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const quizAnswers: QuizAnswers | undefined = location.state?.quizAnswers;
+  const isTestMode = location.state?.isTestMode || false;
   const hasSubmitted = useRef(false);
 
   const isFemale = quizAnswers?.sex?.toLowerCase() === 'female';
@@ -95,12 +96,12 @@ export default function LoadingPage() {
 
     const startPolling = async () => {
       try {
-        const { requestId } = await submitQuizToN8N(quizAnswers);
+        const { requestId } = await submitQuizToN8N(quizAnswers, isTestMode);
 
         pollIntervalId = setInterval(async () => {
           if (cancelled) return;
           try {
-            const result = await pollWorkoutStatus(requestId);
+            const result = await pollWorkoutStatus(requestId, isTestMode);
 
             if (result.status === 'completed' && result.workoutPlan) {
               clearInterval(pollIntervalId);
