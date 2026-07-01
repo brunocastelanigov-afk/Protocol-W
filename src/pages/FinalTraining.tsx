@@ -190,7 +190,7 @@ export default function FinalTraining() {
         </div>
 
         <div className="flex gap-3 w-full max-w-xs mt-2">
-          <Button variant="outline" className="flex-1">Save Asset</Button>
+          <Button variant="outline" className="flex-1" onClick={handleDownloadPDF}>Save Asset</Button>
           <Button variant="default" className="flex-1" onClick={handleDownloadPDF}>Download</Button>
         </div>
       </section>
