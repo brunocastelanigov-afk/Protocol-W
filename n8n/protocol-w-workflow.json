@@ -4,9 +4,11 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "protocol-w-generate",
+        "path": "protocol-w-generate1",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "allowedOrigins": "*"
+        }
       },
       "id": "webhook-generate",
       "name": "Webhook — Generate",
@@ -17,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate a unique requestId\nconst requestId = crypto.randomUUID();\n\n// Store quiz data in workflow static data keyed by requestId\nconst staticData = $getWorkflowStaticData('global');\nstaticData[requestId] = {\n  status: 'processing',\n  quizData: $input.first().json.body,\n  createdAt: new Date().toISOString()\n};\n\nreturn [{ json: { requestId, quizData: $input.first().json.body } }];"
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst requestId = Math.random().toString(36).substring(2, 15) + '_' + Date.now();\n\nconst tempPath = path.join('/tmp', `n8n_${requestId}.json`);\nfs.writeFileSync(tempPath, JSON.stringify({\n  status: 'processing',\n  quizData: $input.first().json.body,\n  createdAt: new Date().toISOString()\n}));\n\nreturn [{ json: { requestId, quizData: $input.first().json.body } }];"
       },
       "id": "code-generate-id",
       "name": "Generate Request ID",
@@ -28,7 +30,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ requestId: $json.requestId }) }}",
+        "responseBody": "={{ { requestId: $json.requestId } }}",
         "options": {
           "responseHeaders": {
             "entries": [
@@ -118,7 +120,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse the validated workout plan and store in static data\nconst staticData = $getWorkflowStaticData('global');\nconst requestId = $('Generate Request ID').first().json.requestId;\n\nlet workoutPlan;\ntry {\n  const rawOutput = $input.first().json.output;\n  // Try to extract JSON from the output (handles potential markdown wrapping)\n  const jsonMatch = rawOutput.match(/\\{[\\s\\S]*\\}/);\n  workoutPlan = JSON.parse(jsonMatch ? jsonMatch[0] : rawOutput);\n} catch (e) {\n  staticData[requestId] = {\n    ...staticData[requestId],\n    status: 'error',\n    error: 'Failed to parse workout plan JSON: ' + e.message\n  };\n  return [{ json: { success: false, error: e.message } }];\n}\n\n// Store the completed plan\nstaticData[requestId] = {\n  ...staticData[requestId],\n  status: 'completed',\n  workoutPlan: workoutPlan,\n  completedAt: new Date().toISOString()\n};\n\nreturn [{ json: { success: true, requestId } }];"
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst requestId = $('Generate Request ID').first().json.requestId;\nconst tempPath = path.join('/tmp', `n8n_${requestId}.json`);\n\nlet workoutPlan;\ntry {\n  const rawOutput = $input.first().json.output;\n  const jsonMatch = rawOutput.match(/\\{[\\s\\S]*\\}/);\n  workoutPlan = JSON.parse(jsonMatch ? jsonMatch[0] : rawOutput);\n} catch (e) {\n  if (fs.existsSync(tempPath)) {\n    fs.writeFileSync(tempPath, JSON.stringify({\n      status: 'error',\n      error: 'Failed to parse workout plan JSON: ' + e.message\n    }));\n  }\n  return [{ json: { success: false, error: e.message } }];\n}\n\nfs.writeFileSync(tempPath, JSON.stringify({\n  status: 'completed',\n  workoutPlan: workoutPlan,\n  completedAt: new Date().toISOString()\n}));\n\nreturn [{ json: { success: true, requestId } }];"
       },
       "id": "code-store-result",
       "name": "Store Result",
@@ -129,9 +131,11 @@
     {
       "parameters": {
         "httpMethod": "GET",
-        "path": "protocol-w-status",
+        "path": "protocol-w-status1",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "allowedOrigins": "*"
+        }
       },
       "id": "webhook-status",
       "name": "Webhook — Status",
@@ -142,7 +146,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Retrieve status for a given requestId\nconst staticData = $getWorkflowStaticData('global');\nconst requestId = $input.first().json.query.requestId;\n\nif (!requestId || !staticData[requestId]) {\n  return [{ json: { status: 'error', error: 'Invalid or unknown requestId' } }];\n}\n\nconst entry = staticData[requestId];\n\nif (entry.status === 'completed') {\n  // Clean up after delivery to prevent memory leaks\n  const result = {\n    status: 'completed',\n    workoutPlan: entry.workoutPlan\n  };\n  delete staticData[requestId];\n  return [{ json: result }];\n}\n\nif (entry.status === 'error') {\n  const result = {\n    status: 'error',\n    error: entry.error || 'Unknown error'\n  };\n  delete staticData[requestId];\n  return [{ json: result }];\n}\n\n// Still processing\nreturn [{ json: { status: 'processing' } }];"
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst requestId = $input.first().json.query.requestId;\n\nif (!requestId) {\n  return [{ json: { status: 'error', error: 'Missing requestId' } }];\n}\n\nconst tempPath = path.join('/tmp', `n8n_${requestId}.json`);\n\nif (!fs.existsSync(tempPath)) {\n  return [{ json: { status: 'error', error: 'Invalid or unknown requestId' } }];\n}\n\nconst data = JSON.parse(fs.readFileSync(tempPath, 'utf8'));\n\nif (data.status === 'completed' || data.status === 'error') {\n  try {\n    fs.unlinkSync(tempPath);\n  } catch (e) {\n    console.error('Failed to delete temp file:', e);\n  }\n}\n\nreturn [{ json: data }];"
       },
       "id": "code-check-status",
       "name": "Check Status",
@@ -153,7 +157,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify($json) }}",
+        "responseBody": "={{ $json }}",
         "options": {
           "responseHeaders": {
             "entries": [

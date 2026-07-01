@@ -51,7 +51,7 @@ export interface PollStatusResponse {
  * Submits quiz answers to N8N webhook and receives a requestId for polling.
  */
 export async function submitQuizToN8N(answers: QuizAnswers): Promise<SubmitQuizResponse> {
-  const response = await fetch(`${N8N_BASE_URL}/webhook/protocol-w-generate`, {
+  const response = await fetch(`${N8N_BASE_URL}/webhook/protocol-w-generate1`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(answers),
@@ -69,7 +69,7 @@ export async function submitQuizToN8N(answers: QuizAnswers): Promise<SubmitQuizR
  */
 export async function pollWorkoutStatus(requestId: string): Promise<PollStatusResponse> {
   const response = await fetch(
-    `${N8N_BASE_URL}/webhook/protocol-w-status?requestId=${requestId}`,
+    `${N8N_BASE_URL}/webhook/protocol-w-status1?requestId=${requestId}`,
     { method: 'GET' }
   );
 

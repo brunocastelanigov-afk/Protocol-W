@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -63,10 +63,12 @@ export default function LoadingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const quizAnswers: QuizAnswers | undefined = location.state?.quizAnswers;
+  const hasSubmitted = useRef(false);
 
   // ─── Submit quiz & poll N8N ───────────────────────────────────────
   useEffect(() => {
-    if (!quizAnswers) return;
+    if (!quizAnswers || hasSubmitted.current) return;
+    hasSubmitted.current = true;
 
     let pollIntervalId: ReturnType<typeof setInterval>;
     let progressIntervalId: ReturnType<typeof setInterval>;
@@ -123,6 +125,7 @@ export default function LoadingPage() {
 
     return () => {
       cancelled = true;
+      hasSubmitted.current = false;
       clearInterval(pollIntervalId);
       clearInterval(progressIntervalId);
     };
