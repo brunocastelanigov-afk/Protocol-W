@@ -23,94 +23,55 @@ export default function FinalTraining() {
   if (!workoutPlan) return null;
 
   const handleDownloadPDF = async () => {
-    // Create offscreen mobile-width container
-    const tempContainer = document.createElement("div");
-    tempContainer.style.position = "fixed";
-    tempContainer.style.left = "-9999px";
-    tempContainer.style.top = "0";
-    tempContainer.style.width = "375px";
-    tempContainer.style.backgroundColor = "#0b1528"; // Dark theme
-    tempContainer.style.color = "#ffffff";
-    tempContainer.style.display = "flex";
-    tempContainer.style.flexDirection = "column";
-    tempContainer.style.gap = "20px";
-    tempContainer.style.padding = "20px";
-    tempContainer.style.fontFamily = "system-ui, -apple-system, sans-serif";
+    const originalElement = document.getElementById("workout-container");
+    if (!originalElement) return;
 
-    // Build mobile-optimized layout HTML using safe hex colors (bypassing Tailwind v4 oklch variables)
-    tempContainer.innerHTML = `
-      <div style="text-align: center; margin-bottom: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
-        <span style="font-weight: bold; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8;">[W] PROTOCOL-W</span>
-        <h1 style="font-size: 22px; font-weight: 800; margin: 0; color: #ffffff; line-height: 1.2;">${workoutPlan.title}</h1>
-        <p style="font-size: 13px; color: #94a3b8; margin: 0; max-width: 320px; line-height: 1.4;">${workoutPlan.description}</p>
-        <div style="display: flex; gap: 6px; justify-content: center; margin-top: 4px;">
-          <span style="padding: 3px 8px; border-radius: 9999px; font-size: 9px; font-weight: 700; background-color: #e11d48; color: #ffffff;">${workoutPlan.frequency}</span>
-          <span style="padding: 3px 8px; border-radius: 9999px; font-size: 9px; font-weight: 700; background-color: #1e293b; color: #f8fafc;">${workoutPlan.duration}</span>
-          <span style="padding: 3px 8px; border-radius: 9999px; font-size: 9px; font-weight: 700; background-color: #f59e0b; color: #ffffff;">${workoutPlan.level}</span>
-        </div>
-      </div>
+    // Clone the real DOM tree (preserving React elements and classes)
+    const clone = originalElement.cloneNode(true) as HTMLElement;
+
+    // Create wrapper container
+    const tempWrapper = document.createElement("div");
+    tempWrapper.style.position = "fixed";
+    tempWrapper.style.left = "-9999px";
+    tempWrapper.style.top = "0";
+    tempWrapper.style.width = "375px";
+    tempWrapper.style.backgroundColor = "#0b1528";
+    tempWrapper.style.boxSizing = "border-box";
+
+    // Inject temporary print override styles for the mobile clone
+    const styleOverride = document.createElement("style");
+    styleOverride.innerHTML = `
+      #temp-workout-container {
+        width: 375px !important;
+        max-width: 375px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 24px !important;
+        padding: 20px !important;
+        background-color: #0b1528 !important;
+      }
+      #temp-workout-container .grid, 
+      #temp-workout-container [class*="grid-cols"] {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+        width: 100% !important;
+      }
+      #temp-workout-container .card, 
+      #temp-workout-container [class*="bg-white"] {
+        width: 100% !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 16px !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+      }
     `;
 
-    // Clone day cards
-    workoutPlan.days.forEach(day => {
-      const dayCard = document.createElement("div");
-      dayCard.style.backgroundColor = "#ffffff";
-      dayCard.style.color = "#000000";
-      dayCard.style.borderRadius = "16px";
-      dayCard.style.padding = "18px";
-      dayCard.style.border = "1px solid #e2e8f0";
-      dayCard.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.05)";
-      dayCard.style.display = "flex";
-      dayCard.style.flexDirection = "column";
-      dayCard.style.gap = "12px";
-
-      dayCard.innerHTML = `
-        <div style="text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 4px;">
-          <h2 style="font-weight: 800; font-size: 17px; margin: 0; text-transform: uppercase; letter-spacing: 0.05em;">${day.day}</h2>
-          <p style="font-size: 11px; color: #64748b; font-weight: 700; margin: 4px 0 0 0; text-transform: uppercase;">${day.focus}</p>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          ${day.exercises.map(ex => `
-            <div style="padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 2px;">
-              <span style="font-size: 13.5px; font-weight: 700; color: #0f172a;">${ex.name}</span>
-              <div style="display: flex; gap: 6px; font-size: 11px; color: #64748b; font-weight: 600;">
-                <span>${ex.sets} × ${ex.reps}</span>
-                <span>|</span>
-                <span>Rest: ${ex.rest}</span>
-              </div>
-              ${ex.notes ? `<span style="font-size: 10px; color: #94a3b8; font-style: italic; margin-top: 2px;">* ${ex.notes}</span>` : ""}
-            </div>
-          `).join("")}
-        </div>
-      `;
-      tempContainer.appendChild(dayCard);
-    });
-
-    // Append tips
-    if (workoutPlan.tips && workoutPlan.tips.length > 0) {
-      const tipsCard = document.createElement("div");
-      tipsCard.style.backgroundColor = "#ffffff";
-      tipsCard.style.color = "#000000";
-      tipsCard.style.borderRadius = "16px";
-      tipsCard.style.padding = "18px";
-      tipsCard.style.border = "1px solid #e2e8f0";
-      tipsCard.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.05)";
-
-      tipsCard.innerHTML = `
-        <h3 style="font-weight: 800; font-size: 13px; text-align: center; margin: 0 0 10px 0; color: #0f172a; letter-spacing: 0.05em;">💡 PRO TIPS</h3>
-        <ul style="padding: 0; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 8px;">
-          ${workoutPlan.tips.map(tip => `
-            <li style="font-size: 11.5px; color: #334155; display: flex; gap: 8px; line-height: 1.4;">
-              <span style="color: #e11d48; font-weight: 900;">•</span>
-              <span>${tip}</span>
-            </li>
-          `).join("")}
-        </ul>
-      `;
-      tempContainer.appendChild(tipsCard);
-    }
-
-    document.body.appendChild(tempContainer);
+    clone.id = "temp-workout-container";
+    tempWrapper.appendChild(styleOverride);
+    tempWrapper.appendChild(clone);
+    document.body.appendChild(tempWrapper);
 
     try {
       // Temporarily intercept getComputedStyle to bypass html2canvas oklch parsing bug
@@ -135,7 +96,7 @@ export default function FinalTraining() {
         });
       };
 
-      const canvas = await html2canvas(tempContainer, {
+      const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
         backgroundColor: "#0b1528"
@@ -156,7 +117,7 @@ export default function FinalTraining() {
     } catch (err) {
       console.error("Failed to generate PDF:", err);
     } finally {
-      document.body.removeChild(tempContainer);
+      document.body.removeChild(tempWrapper);
     }
   };
 
@@ -199,7 +160,7 @@ export default function FinalTraining() {
       </section>
 
       {/* Training Plan Content */}
-      <main className="flex-1 flex flex-col px-4 sm:px-6 pb-6 gap-6">
+      <main id="workout-container" className="flex-1 flex flex-col px-4 sm:px-6 pb-6 gap-6">
         
         {/* ABC Day Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
