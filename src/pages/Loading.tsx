@@ -12,6 +12,8 @@ import { submitQuizToN8N, pollWorkoutStatus, type WorkoutPlan, type QuizAnswers 
 // Importing Before/After assets
 import beforeImg from "@/assets/protocolW/Men-Before-After/before.webp";
 import afterImg from "@/assets/protocolW/Men-Before-After/after.webp";
+import womanBeforeImg from "@/assets/protocolW/Woman-Before-After/before.webp";
+import womanAfterImg from "@/assets/protocolW/Woman-Before-After/after.webp";
 
 // Importing Avatars
 import avatar1 from "@/assets/protocolW/avatars/ChatGPT Image Jun 30, 2026, 12_27_06 PM.webp";
@@ -64,6 +66,10 @@ export default function LoadingPage() {
   const location = useLocation();
   const quizAnswers: QuizAnswers | undefined = location.state?.quizAnswers;
   const hasSubmitted = useRef(false);
+
+  const isFemale = quizAnswers?.sex?.toLowerCase() === 'female';
+  const selectedBeforeImg = isFemale ? womanBeforeImg : beforeImg;
+  const selectedAfterImg = isFemale ? womanAfterImg : afterImg;
 
   // ─── Submit quiz & poll N8N ───────────────────────────────────────
   useEffect(() => {
@@ -186,8 +192,8 @@ export default function LoadingPage() {
         {/* Before / After Vertical Slider Card */}
         <div className="w-full">
           <BeforeAfterSliderCard 
-            beforeImg={beforeImg} 
-            afterImg={afterImg} 
+            beforeImg={selectedBeforeImg} 
+            afterImg={selectedAfterImg} 
           />
         </div>
 
