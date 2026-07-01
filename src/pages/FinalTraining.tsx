@@ -120,6 +120,9 @@ export default function FinalTraining() {
         return new Proxy(style, {
           get(target, prop) {
             const val = Reflect.get(target, prop);
+            if (typeof val === "function") {
+              return val.bind(target);
+            }
             if (typeof val === "string" && val.includes("oklch")) {
               // Convert tailwind v4 oklch variables to safe fallback rgb colors
               if (prop === "backgroundColor") return "rgb(11, 21, 40)";
